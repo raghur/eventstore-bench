@@ -1,0 +1,17 @@
+{
+  "name": "vendor",
+  "version": "1.0.0",
+  "description": "Just deps for k6 tests",
+  "main": "\"\"",
+  "dependencies": {
+    "uuid": "^3.1.0"
+  },
+  "devDependencies": {
+    "browserify": "^14.5.0"
+  },
+  "scripts": {
+    "build": "node_modules/.bin/browserify node_modules/uuid/index.js -s uuid > uuid.js"
+  },
+  "author": "",
+  "license": "ISC"
+}
