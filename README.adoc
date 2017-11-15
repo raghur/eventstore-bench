@@ -101,6 +101,38 @@ key2       Full           <masked>
 * Repo - https://github.com/raghur/eventstore-bench
 ** See `src/config.js` for changing endpoints
 
+=== Prepping AKS for monitoring with Heapster, Grafana and InfluxDB
+
+To collect pod utilization under load, we need heapster, grafana and influx db working as described
+https://kubernetes.io/docs/tasks/debug-application-cluster/resource-usage-monitoring/[here] with 
+https://github.com/kubernetes/heapster/blob/master/docs/influxdb.md[setup instructions here]. They
+however require some tweaks on AKS because the default AKS deployment includes heapster but not grafana and influx db. 
+Due to this, the heapster node is not provided a sink (and so ineffective). To fix:
+
+. Clone the heapster repo - https://github.com/kubernetes/heapster
+. Follow this step in the guide:
++
+[source,shell]
+----
+$ kubectl create -f deploy/kube-config/influxdb/
+$ kubectl create -f deploy/kube-config/rbac/heapster-rbac.yaml
+----
+. Now fix up heapster
+.. Open heapster on kubernetes dashboard (http://localhost:8001/api/v1/namespaces/kube-system/services/kubernetes-dashboard/proxy/#!/deployment/kube-system/heapster?namespace=kube-system)
+.. Click 'Edit'
+.. Find the container with name: `heapster` and add a `--sink=influxdb:http://monitoring-influxdb.kube-system.svc:8086`
++
+.Add the sink parameter to heapster
+[.center.text-left]
+image::https://i.imgur.com/64MW2GP.png[alt]
+. Now we need to make Grafana accessible from outside the cluster.
+.. Edit the `monitoring-grafana` service (http://localhost:8001/api/v1/namespaces/kube-system/services/kubernetes-dashboard/proxy/#!/service/kube-system/monitoring-grafana?namespace=kube-system) and add `type: "LoadBalancer"`
++
+[.center.text-left]
+image::https://i.imgur.com/ASiD7ym.png[alt]
+. Once k8s updates the service, you should see an external IP - and browsing to http://<externalip> should bring you 
+to the Grafana dashboard.
+
 === Test Scenario
 
 * Each user creates a stream, adds 10 events, then reads the stream completely followed by reading each event
