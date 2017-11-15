@@ -4,7 +4,8 @@
 
 = EventStore on Kubernetes (AKS)
 
-== Set up K8S
+== Prep - set up `az`
+
 === install azure xplat cli
 
 1. `pip install azure-cli`
@@ -12,6 +13,8 @@
 === Login and set subscription
 2. `az login`
 3. `az account set -s <subid>`
+
+== Set up K8S
 
 === create service principal
 
@@ -108,8 +111,6 @@ individually.
 As expected, the podversion is able to serve 33% more requests though CPU utilization is a little higher since
 IO happens locally?
 
-*Need to test scenario where pod goes down during the test.*
-
 ==== Test Results - client summary
 [cols="2", options="header"]
 .A 5 minute test with 10 concurrent users
@@ -179,4 +180,7 @@ a|
 image::https://i.imgur.com/INpLOaa.png[alt,100%]
 |===
 
+=== A real-world test with node failures
+
+*To be done*
 
