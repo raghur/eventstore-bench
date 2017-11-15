@@ -1,0 +1,182 @@
+:docinfo: shared-head
+:icons: font
+:toc:
+
+= EventStore on Kubernetes (AKS)
+
+== Set up K8S
+=== install azure xplat cli
+
+1. `pip install azure-cli`
+
+=== Login and set subscription
+2. `az login`
+3. `az account set -s <subid>`
+
+=== create service principal
+
+4. Create service principal
++
+```
+C:\Users\raghuramanr>az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/<masked>"
+Retrying role assignment creation: 1/36
+{
+  "appId": "30521959-8e29-4855-9176-ede965cc8432",
+  "displayName": "azure-cli-2017-11-14-04-56-25",
+  "name": "http://azure-cli-2017-11-14-04-56-25",
+  "password": "<masked>",
+  "tenant": "7a33d93c-28b7-4b2f-af94-9c3c883b8c95"
+}
+```
+
+=== Create cluster
+
+1. Create cluster on Azure portal
+2. download the template for later - saved as `d:\downloads\azure-k8s-cluster.zip`
+3. Start cluster deployment
+4. Get coffee.
+
+=== Download cluster creds
+
+1. Download cluster creds
++
+```
+C:\Users\raghuramanr>az acs kubernetes get-credentials --resource-group=kube-cluster --name=kube-cluster
+Merged "k8smgmt" as current context in C:\Users\raghuramanr\.kube\config
+```
+2. Verify cluster is working 
++
+```
+C:\Users\raghuramanr>kubectl get nodes
+NAME                       STATUS    ROLES     AGE       VERSION
+k8s-agentpool-31036649-0   Ready     agent     6m        v1.7.9
+k8s-agentpool-31036649-1   Ready     agent     6m        v1.7.9
+k8s-agentpool-31036649-2   Ready     agent     6m        v1.7.9
+k8s-master-31036649-0      Ready     master    6m        v1.7.9
+```
+
+=== Connect to K8S Web UI
+
+1. `kubectl proxy`
+2. Browse to http://localhost:8001/ui
+
+=== Add Persistent Storage (Azure Files)
+
+* Reference link: https://docs.microsoft.com/en-us/azure/aks/azure-files
+* Github Repo/branch - https://github.com/raghur/eventstore-kubernetes / aks-persistentdisk
+
+1. Create storage account
++
+```
+C:\Users\raghuramanr>az storage account create --n persistentstorage11342 -g kube-cluster --sku Standard_LRS
+```
+2. List keys
++
+```
+C:\Users\raghuramanr>az storage account keys list -n persistentstorage11342 -g kube-cluster --output table
+KeyName    Permissions    Value
+---------  -------------  ----------------------------------------------------------------------------------------
+key1       Full           <masked>
+key2       Full           <masked>
+```
+3. base64 encode keys and account name
++
+*Don't do this on cmd.exe - do it on a real linux box or wsl*
+4. Create the fileshares - I just used the web portal - esdisk-1.. esdisk-N
+1. Create an azure secret as in ref link above - template is in `fileshare/azure-secret.yml`
+1. Add the azure secret to your k8s cluster - `kubectl apply -f fileshare/azure-secret.yml`
+1. Run `cd scripts && generate-deployment.sh 3` for a 3 node cluster.
+1. Create ES Pods: Run `kubectl create -f .tmp/es_deployment_X.yaml` files to create the ES nodes
+1. Create a service fronting the PODS: Run `kubectl create -f services/eventstore.yaml`
+1. Create a configmap for nginx: Run `kubectl create configmap nginx-es-pd-frontend-conf --from-file services/eventstore.yaml`
+1. Create the Nginx front end proxy Pod: Run `kubectl create -f deployments/frontend-es.yaml`
+1. Create the Nginx service: Run `kubectl create -f services/frontend-es.yaml`
+
+
+== Perf Bench
+
+* Repo - https://github.com/raghur/eventstore-bench
+** See `src/config.js` for changing endpoints
+
+=== Test Scenario
+
+* Each user creates a stream, adds 10 events, then reads the stream completely followed by reading each event
+individually.
+* Test run is 10 concurrent users repeating for 5 mins from a single client node (my machine)
+
+=== Happy path - no node failures
+As expected, the podversion is able to serve 33% more requests though CPU utilization is a little higher since
+IO happens locally?
+
+*Need to test scenario where pod goes down during the test.*
+
+==== Test Results - client summary
+[cols="2", options="header"]
+.A 5 minute test with 10 concurrent users
+|===
+|PodVersion (local pod storage)
+|Persistent Disk (Azure file share)
+
+a|
+
+[source,shell]
+----
+    ✓ is status 201
+    ✓ is status 200
+
+    checks................: 100.00%
+    data_received.........: 13 MB (45 kB/s)
+    data_sent.............: 1.9 MB (6.5 kB/s)
+    http_req_blocked......: avg=169.85µs max=123.74ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=163.3µs max=123.74ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=37.31ms max=384.74ms med=25.25ms min=11.02ms p(90)=64.17ms p(95)=70.53ms
+    http_req_receiving....: avg=135.21µs max=112.45ms med=0s min=0s p(90)=966.6µs p(95)=1ms
+    http_req_sending......: avg=44.73µs max=18.04ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=37.13ms max=383.74ms med=25.09ms min=11.02ms p(90)=64.17ms p(95)=70.31ms
+    http_reqs.............: 79237 (264.12333333333333/s)
+    vus...................: 10
+    vus_max...............: 10
+----
+a|
+
+[source,shell]
+----
+    ✓ is status 201
+    ✗ is status 200
+          0.02% (6/33058)
+
+    checks................: 99.99%
+    data_received.........: 11 MB (36 kB/s)
+    data_sent.............: 1.5 MB (5.1 kB/s)
+    http_req_blocked......: avg=192.75µs max=1.01s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=188.42µs max=1.01s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=47.04ms max=4.57s med=30.07ms min=11.01ms p(90)=83.87ms p(95)=99.23ms
+    http_req_receiving....: avg=120.67µs max=72.19ms med=0s min=0s p(90)=489µs p(95)=1ms
+    http_req_sending......: avg=32.91µs max=2ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=46.88ms max=4.57s med=29.11ms min=10.99ms p(90)=83.39ms p(95)=98.46ms
+    http_reqs.............: 63163 (210.54333333333332/s)
+    vus...................: 10
+    vus_max...............: 10
+----
+|===
+
+
+==== Test Results - CPU utilization
+
+[cols="2", options="header"]
+.A 5 minute test with 10 concurrent users
+|===
+|PodVersion (local pod storage)
+|Persistent Disk (Azure file share)
+a|
+
+[.center.text-center]
+image::https://i.imgur.com/BIH7m8M.png[alt,100%]
+
+a|
+
+[.center.text-center]
+image::https://i.imgur.com/INpLOaa.png[alt,100%]
+|===
+
+
