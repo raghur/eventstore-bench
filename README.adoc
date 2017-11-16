@@ -2,7 +2,7 @@
 :icons: font
 :toc:
 
-= EventStore on Kubernetes (AKS)
+= EventStore on Kubernetes on Azure(ACS)
 
 == Prep - set up `az`
 
@@ -101,12 +101,12 @@ key2       Full           <masked>
 * Repo - https://github.com/raghur/eventstore-bench
 ** See `src/config.js` for changing endpoints
 
-=== Prepping AKS for monitoring with Heapster, Grafana and InfluxDB
+=== Prepping k8s on ACS for monitoring with Heapster, Grafana and InfluxDB
 
 To collect pod utilization under load, we need heapster, grafana and influx db working as described
 https://kubernetes.io/docs/tasks/debug-application-cluster/resource-usage-monitoring/[here] with 
 https://github.com/kubernetes/heapster/blob/master/docs/influxdb.md[setup instructions here]. They
-however require some tweaks on AKS because the default AKS deployment includes heapster but not grafana and influx db. 
+however require some tweaks on ACS because the default ACS deployment includes heapster but not grafana and influx db. 
 Due to this, the heapster node is not provided a sink (and so ineffective). To fix:
 
 . Clone the heapster repo - https://github.com/kubernetes/heapster
