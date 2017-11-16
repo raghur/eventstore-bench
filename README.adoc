@@ -91,7 +91,7 @@ key2       Full           <masked>
 1. Run `cd scripts && generate-deployment.sh 3` for a 3 node cluster.
 1. Create ES Pods: Run `kubectl create -f .tmp/es_deployment_X.yaml` files to create the ES nodes
 1. Create a service fronting the PODS: Run `kubectl create -f services/eventstore.yaml`
-1. Create a configmap for nginx: Run `kubectl create configmap nginx-es-pd-frontend-conf --from-file services/eventstore.yaml`
+1. Create a configmap for nginx: Run `kubectl.exe create configmap nginx-es-pd-frontend-conf --from-file nginx/frontend.conf`
 1. Create the Nginx front end proxy Pod: Run `kubectl create -f deployments/frontend-es.yaml`
 1. Create the Nginx service: Run `kubectl create -f services/frontend-es.yaml`
 
@@ -139,7 +139,7 @@ to the Grafana dashboard.
 individually.
 * Test run is 10 concurrent users repeating for 5 mins from a single client node (my machine)
 
-=== Happy path - no node failures
+=== Happy path - no node failures - 10 concurrent users
 As expected, the podversion is able to serve 33% more requests though CPU utilization is a little higher since
 IO happens locally?
 
@@ -212,7 +212,233 @@ a|
 image::https://i.imgur.com/INpLOaa.png[alt,100%]
 |===
 
+=== Happy path - no node failures - 100 concurrent users
+
+==== Test Results - client summary
+[cols="2", options="header"]
+.A 5 minute test with 100 concurrent users
+|===
+|PodVersion (local pod storage)
+|Persistent Disk (Azure file share)
+
+a|
+
+[source,shell]
+----
+    ✓ is status 201
+    ✓ is status 200
+
+    checks................: 100.00%
+    data_received.........: 43 MB (144 kB/s)
+    data_sent.............: 6.3 MB (21 kB/s)
+    http_req_blocked......: avg=885.64µs max=3.06s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=878.71µs max=3.06s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=117.77ms max=3.56s med=105.27ms min=13.03ms p(90)=158.42ms p(95)=184.48ms
+    http_req_receiving....: avg=910µs max=1.82s med=0s min=0s p(90)=0s p(95)=1ms
+    http_req_sending......: avg=23.87µs max=7.04ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=116.84ms max=3.56s med=104.29ms min=13.03ms p(90)=157.42ms p(95)=182.48ms
+    http_reqs.............: 252400 (841.3333333333334/s)
+    vus...................: 100
+    vus_max...............: 100
+----
+a|
+
+[source,shell]
+----
+    ✓ is status 201
+    ✓ is status 200
+
+    checks................: 100.00%
+    data_received.........: 33 MB (109 kB/s)
+    data_sent.............: 4.6 MB (15 kB/s)
+    http_req_blocked......: avg=1.05ms max=9.1s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=1.04ms max=9.1s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=149.99ms max=7.14s med=121.29ms min=12.03ms p(90)=219.57ms p(95)=281.74ms
+    http_req_receiving....: avg=1.21ms max=3.67s med=0s min=0s p(90)=0s p(95)=1ms
+    http_req_sending......: avg=22.99µs max=10.02ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=148.75ms max=6.08s med=120.31ms min=12.03ms p(90)=218.58ms p(95)=279.74ms
+    http_reqs.............: 198334 (661.1133333333333/s)
+    vus...................: 100
+    vus_max...............: 100
+----
+|===
+
+
+==== Test Results - CPU utilization
+
+[cols="2", options="header"]
+.A 5 minute test with 100 concurrent users
+|===
+|PodVersion (local pod storage)
+|Persistent Disk (Azure file share)
+a|
+
+[.center.text-center]
+image::https://i.imgur.com/Id02SGu.png[alt,100%]
+
+a|
+
+[.center.text-center]
+image::https://i.imgur.com/41iqOft.png[alt,100%]
+|===
+
+=== Happy path - no node failures - 1000 concurrent users
+
+Now we start seeing a bunch of errors - however, these were client timeouts so I'm
+not exactly sure if things broke at the server end. The pattern continues though - 
+POD version serves more reqs/s at a slightly higher CPU utilization.
+
+*I should probably run a couple of nodes to drive traffic and do that - but that means
+reading more k6.io documentation which I'd rather not ATM*
+
+|===
+|POD Version |Persistent Disk Version
+
+a|
+
+[source,shell]
+----
+# POD version
+    ✗ is status 201
+          0.44% (229/52608)
+    ✗ is status 200
+          0.65% (332/51389)
+
+    checks................: 99.46%
+    data_received.........: 32 MB (267 kB/s)
+    data_sent.............: 5.7 MB (47 kB/s)
+    http_req_blocked......: avg=50.02ms max=21.13s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=49.89ms max=21.09s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=868.85ms max=1m0s med=188.52ms min=106.3ms p(90)=1.42s p(95)=2.66s
+    http_req_receiving....: avg=173.69ms max=59.56s med=0s min=0s p(90)=0s p(95)=69.15ms
+    http_req_sending......: avg=34.97µs max=1.2s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=695.13ms max=59.74s med=188.47ms min=106.3ms p(90)=1.22s p(95)=2.14s
+    http_reqs.............: 103996 (866.6333333333333/s)
+    vus...................: 1000
+    vus_max...............: 1000
+----
+a|
+
+[source,shell]
+----
+# persistentdisk version - more failures
+    ✗ is status 200
+          1.26% (573/45500)
+    ✗ is status 201
+          1.03% (482/46886)
+
+    checks................: 98.86%
+    data_received.........: 34 MB (282 kB/s)
+    data_sent.............: 6.1 MB (51 kB/s)
+    http_req_blocked......: avg=65.61ms max=21.03s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=65.33ms max=21.01s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=1.06s max=1m0s med=459.24ms min=95.22ms p(90)=1.73s p(95)=3.02s
+    http_req_receiving....: avg=158.52ms max=59.74s med=0s min=0s p(90)=0s p(95)=1.02ms
+    http_req_sending......: avg=740.5µs max=19.39s med=0s min=1ms p(90)=0s p(95)=0s
+    http_req_waiting......: avg=907.79ms max=59.52s med=445.19ms min=95.22ms p(90)=1.58s p(95)=2.58s
+    http_reqs.............: 92386 (769.8833333333333/s)
+    vus...................: 1000
+    vus_max...............: 1000
+----
+
+a|
+[.center.text-center]
+image::https://i.imgur.com/F3yirNz.png[PodVersion for 1000 cusers]
+a|
+[.center.text-center]
+image::https://i.imgur.com/ExuZRMY.png[Persistent Disk - CPU - 1000cusers]
+|===
+
 === A real-world test with node failures
 
-*To be done*
+So for this, I think I'm going to run a 500 user test for 5 mins on each
+configuration and then randomly kill pods during the test.
 
+The POD version will get a new node which will have to catch up to the cluster
+master since it will start off with empty storage.
+
+The Persistent Disk version OTOH, has data intact - so the moment a node comes
+up, it should just carry on.
+IMO, in this test, we should see the Persistent Disk version do better.
+
+==== The results
+
+Interesting to say the least. The persistent disk version did not a do a lot 
+better as expected (or, said the other way round, the pod version recovered
+pretty quickly on pod failure). There are slightly more failures on the pod
+version, but not a whole lot - we're talking .03% difference. The persistent
+disk version pulled ahead by a small factor for once (20req/s) but that's it.
+
+.Caveat
+
+In this case, pod failures were probably far enough to not matter - ie pod1 was 
+deleted and pod1' came online and caught up before pod2 was deleted. If both
+pods went offline in quick succession, then data loss is a real possibility.
+
+
+
+|===
+|POD Version |Persistent Disk Version
+
+a|
+
+. Pod es-223* was deleted at 1m 
+. Pod es-223* was deleted at 3m18s
+
+[source,shell]
+----
+# POD version
+    ✗ is status 201
+          0.15% (184/126755)
+    ✗ is status 200
+          0.19% (265/136609)
+
+    checks................: 99.83%
+    data_received.........: 51 MB (170 kB/s)
+    data_sent.............: 7.9 MB (26 kB/s)
+    http_req_blocked......: avg=8.44ms max=21s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=8.43ms max=21s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=539.67ms max=1m0s med=198.5ms min=147.39ms p(90)=952.55ms p(95)=1.55s
+    http_req_receiving....: avg=57.89ms max=59.55s med=0s min=0s p(90)=0s p(95)=1.03ms
+    http_req_sending......: avg=23.15µs max=3.5ms med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=481.75ms max=59.1s med=196.52ms min=147.39ms p(90)=891.36ms p(95)=1.47s
+    http_reqs.............: 263364 (877.88/s)
+    vus...................: 500
+    vus_max...............: 500
+----
+a|
+
+. Pod es-1* was deleted at 1m 
+. Pod es-3* was deleted at 3m18s
+
+[source,shell]
+----
+# persistentdisk version 
+# deleted pods at 1m mark and 3m18s mark
+    ✗ is status 201
+          0.12% (148/123644)
+    ✗ is status 200
+          0.13% (173/133111)
+
+    checks................: 99.87%
+    data_received.........: 50 MB (167 kB/s)
+    data_sent.............: 7.8 MB (26 kB/s)
+    http_req_blocked......: avg=11.62ms max=21.02s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_connecting...: avg=11.56ms max=21.01s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_duration.....: avg=553.44ms max=1m0s med=272.74ms min=80.21ms p(90)=948.51ms p(95)=1.49s
+    http_req_receiving....: avg=58.1ms max=59.76s med=0s min=0s p(90)=0s p(95)=1.02ms
+    http_req_sending......: avg=562.74µs max=21.96s med=0s min=0s p(90)=0s p(95)=0s
+    http_req_waiting......: avg=494.78ms max=59.37s med=267.69ms min=79.23ms p(90)=902.37ms p(95)=1.37s
+    http_reqs.............: 256755 (855.85/s)
+    vus...................: 500
+    vus_max...............: 500
+----
+a|
+.This pod was not deleted
+[.center.text-center]
+image::https://i.imgur.com/ahzxrYs.png[PodVersion for 1000 cusers]
+a|
+.This pod was not deleted
+[.center.text-center]
+image::https://i.imgur.com/kUTDc2t.png[Persistent Disk - CPU - 1000cusers]
+|===
