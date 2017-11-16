@@ -2,7 +2,7 @@
 :icons: font
 :toc:
 
-= EventStore on Kubernetes on Azure(ACS)
+= EventStore on Azure Kubernetes (ACS)
 
 == Prep - set up `az`
 
